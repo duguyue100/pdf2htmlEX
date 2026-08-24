@@ -175,6 +175,7 @@ POPPLER_VERSION=24.01.0
 [ -f "$STAGE/lib/libpoppler.a" ] || {
     mkdir -p "$SRC/poppler-src/test"
     cmake_bi "$SRC/poppler-src" \
+        -DBUILD_TESTING=OFF \
         -DENABLE_UNSTABLE_API_ABI_HEADERS=ON \
         -DFONT_CONFIGURATION=fontconfig \
         -DENABLE_GLIB=OFF -DENABLE_CPP=OFF -DENABLE_QT5=OFF -DENABLE_QT6=OFF \
@@ -217,6 +218,8 @@ cmake -S "$ROOT" -B "$BUILD/pdf2htmlex" -G Ninja \
     -DPOPPLER_SOURCE_DIR="$SRC/poppler-src" \
     -DFREETYPE_LIBRARY="$STAGE/lib/libfreetype.a" \
     -DPDF2HTMLEX_TRANSITIVE_DEPS="fontconfig;libjpeg;libpng16;lcms2;gobject-2.0;gio-2.0" \
+    # expat: transitive dep of static fontconfig
+    -DPDF2HTMLEX_EXTRA_STATIC_LIBS="-lexpat" \
     -DCMAKE_EXE_LINKER_FLAGS="-L$STAGE/lib"
 cmake --build "$BUILD/pdf2htmlex" -j"$NPROC"
 
