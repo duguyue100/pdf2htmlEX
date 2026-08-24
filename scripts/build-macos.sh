@@ -49,8 +49,9 @@ meson_bi() { # meson_bi <srcdir> [extra meson args...]
 
 command -v meson >/dev/null || {
     # PEP 668: system python is externally managed; use a private venv
+    # (packaging is required by glib's build scripts)
     python3 -m venv "$BUILD/venv"
-    "$BUILD/venv/bin/pip" install --quiet meson ninja
+    "$BUILD/venv/bin/pip" install --quiet meson ninja packaging
     export PATH="$BUILD/venv/bin:$PATH"
 }
 
