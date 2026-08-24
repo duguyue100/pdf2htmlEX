@@ -32,7 +32,6 @@ jobs:
         run: |
           mkdir -p dist
           docker run --rm pdf2htmlex-static tar -cC /out . | tar -xC dist
-          mv dist/pdf2htmlEX-linux-*.tar.gz "dist/pdf2htmlEX-linux-${{ matrix.arch }}.tar.gz"
 
       - name: Build (macos)
         if: runner.os == 'macOS'
