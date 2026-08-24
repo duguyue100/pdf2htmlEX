@@ -159,7 +159,11 @@ fi
     f=$(fetch https://github.com/mm2/Little-CMS/releases/download/lcms2.16/lcms2-2.16.tar.gz)
     mkdir "$SRC/lcms2" && tar -xzf "$f" --strip-components=1 -C "$SRC/lcms2"
 }
-[ -f "$STAGE/lib/liblcms2.a" ] || cmake_bi "$SRC/lcms2"
+if [ ! -f "$STAGE/lib/liblcms2.a" ]; then
+    # lcms2 2.16 no longer ships CMake support; use autotools
+    (cd "$SRC/lcms2" && ./configure --prefix="$STAGE" --enable-static --disable-shared >/dev/null \
+        && make -j"$NPROC" >/dev/null && make install >/dev/null)
+fi
 
 # ---- 13. poppler (static, internal headers exported) -----------------------
 POPPLER_VERSION=24.01.0
