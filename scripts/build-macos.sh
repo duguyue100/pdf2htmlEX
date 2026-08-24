@@ -47,7 +47,12 @@ meson_bi() { # meson_bi <srcdir> [extra meson args...]
     meson install -C "$src/build"
 }
 
-command -v meson >/dev/null || pip3 install --quiet meson ninja
+command -v meson >/dev/null || {
+    # PEP 668: system python is externally managed; use a private venv
+    python3 -m venv "$BUILD/venv"
+    "$BUILD/venv/bin/pip" install --quiet meson ninja
+    export PATH="$BUILD/venv/bin:$PATH"
+}
 
 # ---- 1. zlib ---------------------------------------------------------------
 [ -d "$SRC/zlib" ] || {
