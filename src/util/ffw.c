@@ -14,7 +14,6 @@
 #include <math.h>
 
 #include <locale.h>
-#include <libintl.h>
 
 #include <fontforge.h>
 #include <baseviews.h>

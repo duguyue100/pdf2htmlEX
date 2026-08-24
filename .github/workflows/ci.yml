@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, revive]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux-static:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest        # amd64
+            arch: x86_64
+          - os: ubuntu-24.04-arm     # arm64 (free native runner)
+            arch: aarch64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build static binary + smoke test
+        run: docker build -f Dockerfile.alpine-static -t pdf2htmlex-static .
+
+      - name: Export tarball
+        run: |
+          mkdir -p dist
+          docker run --rm pdf2htmlex-static tar -cC /out . | tar -xC dist
+          mv dist/pdf2htmlEX-linux-*.tar.gz "dist/pdf2htmlEX-linux-${{ matrix.arch }}.tar.gz"
+          ls -la dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf2htmlEX-linux-${{ matrix.arch }}
+          path: dist/*.tar.gz
+
+  macos-static:
+    runs-on: macos-14           # Apple Silicon (M1)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build static binary + smoke test
+        run: ./scripts/build-macos.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf2htmlEX-macos-arm64
+          path: dist/pdf2htmlEX-macos-arm64.tar.gz

@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+          - os: macos-14
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (linux)
+        if: runner.os == 'Linux'
+        run: docker build -f Dockerfile.alpine-static -t pdf2htmlex-static .
+
+      - name: Export tarball (linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist
+          docker run --rm pdf2htmlex-static tar -cC /out . | tar -xC dist
+          mv dist/pdf2htmlEX-linux-*.tar.gz "dist/pdf2htmlEX-linux-${{ matrix.arch }}.tar.gz"
+
+      - name: Build (macos)
+        if: runner.os == 'macOS'
+        run: ./scripts/build-macos.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf2htmlEX-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tar.gz

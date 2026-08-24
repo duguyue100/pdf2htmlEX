@@ -81,8 +81,10 @@ set(PDF2HTMLEX_LIBS
     ${FREETYPE_LIBRARIES}
     ${GLIB2_LIBRARIES}
 )
-foreach(_mod fontconfig libjpeg libpng16 libopenjp2 lcms2 libtiff-4
-             gobject-2.0 gio-2.0 libxml-2.0 libspiro)
+set(PDF2HTMLEX_TRANSITIVE_DEPS
+    "fontconfig;libjpeg;libpng16;libopenjp2;lcms2;libtiff-4;gobject-2.0;gio-2.0;libxml-2.0;libspiro"
+    CACHE STRING "pkg-config modules needed by the two static archives")
+foreach(_mod ${PDF2HTMLEX_TRANSITIVE_DEPS})
     pkg_check_modules(PC_${_mod} QUIET ${_mod})
     if(PC_${_mod}_FOUND)
         list(APPEND PDF2HTMLEX_LIBS ${PC_${_mod}_LIBRARIES})
@@ -90,6 +92,12 @@ foreach(_mod fontconfig libjpeg libpng16 libopenjp2 lcms2 libtiff-4
     endif()
 endforeach()
 list(APPEND PDF2HTMLEX_LIBS -lgif -lz -lm -lpthread)
+
+# fully-static builds may need extra low-level archives appended after
+# everything else so ld can resolve transitive references
+set(PDF2HTMLEX_EXTRA_STATIC_LIBS "" CACHE STRING
+    "Extra libraries appended at the end of the link line")
+list(APPEND PDF2HTMLEX_LIBS ${PDF2HTMLEX_EXTRA_STATIC_LIBS})
 
 if(NOT EXISTS ${POPPLER_SOURCE_DIR}/poppler/CairoOutputDev.cc)
     message(FATAL_ERROR "POPPLER_SOURCE_DIR must point at a poppler >=24.01 source tree "

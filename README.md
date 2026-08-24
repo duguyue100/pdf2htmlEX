@@ -13,6 +13,25 @@ pdf2htmlEX is no longer under active development. New maintainers are [wanted](h
 - **Full Circle Magazine** (read while downloading): [HTML](http://coolwanglu.github.io/pdf2htmlEX/demo/issue65_en.html) / [PDF](http://dl.fullcirclemagazine.org/issue65_en.pdf)
 - **Git Manual** (CJK support): [HTML](http://coolwanglu.github.io/pdf2htmlEX/demo/chn.html) / [PDF](http://files.cnblogs.com/phphuaibei/git%E6%90%AD%E5%BB%BA.pdf)
 
+## Building (revived)
+
+This repository has been revived to build against **poppler 24.01** and
+**fontforge 20230101**, producing fully static, self-contained binaries.
+
+| Platform | How |
+|---|---|
+| linux amd64 / arm64 | `make static` (musl, fully static) or CI |
+| macOS arm64 (Apple Silicon) | `./scripts/build-macos.sh` |
+| dev/test loop | `make build` / `make test` / `make shell` (all inside docker) |
+
+Tarballs contain `bin/pdf2htmlEX` + `share/pdf2htmlEX/` resources; the binary
+locates resources relative to its own path. GitHub Actions builds all three
+platforms on every push and attaches release assets on tags.
+
+Source synced from the maintained fork
+[pdf2htmlEX/pdf2htmlEX](https://github.com/pdf2htmlEX/pdf2htmlEX) at
+v0.18.8.rc1, then ported forward to modern poppler/fontforge APIs.
+
 pdf2htmlEX renders PDF files in HTML, utilizing modern Web technologies.
 Academic papers with lots of formulas and figures? Magazines with complicated layouts? No problem!
 
