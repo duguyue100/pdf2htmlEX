@@ -115,7 +115,7 @@ fi
 
 # ---- 8. pixman (for cairo) -------------------------------------------------
 [ -d "$SRC/pixman" ] || {
-    f=$(fetch https://cairographics.org/snapshots/pixman-0.43.4.tar.gz)
+    f=$(fetch https://cairographics.org/releases/pixman-0.44.2.tar.gz)
     mkdir "$SRC/pixman" && tar -xzf "$f" --strip-components=1 -C "$SRC/pixman"
 }
 [ -f "$STAGE/lib/libpixman-1.a" ] || meson_bi "$SRC/pixman" -Dgtk=disabled -Dtests=disabled -Ddemos=disabled -Dlibpng=disabled
