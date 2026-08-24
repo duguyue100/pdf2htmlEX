@@ -145,9 +145,11 @@ fi
     f=$(fetch https://cairographics.org/releases/cairo-1.18.0.tar.xz)
     mkdir "$SRC/cairo" && tar -xJf "$f" --strip-components=1 -C "$SRC/cairo"
 }
+# zlib pulls in the cairo-script interpreter and its lzo dep,
+# neither used by pdf2htmlEX (image+svg surfaces only)
 [ -f "$STAGE/lib/libcairo.a" ] || meson_bi "$SRC/cairo" \
     -Dtests=disabled -Dxlib=disabled -Dxcb=disabled -Dspectre=disabled \
-    -Dsymbol-lookup=disabled -Dgtk2-utils=disabled
+    -Dsymbol-lookup=disabled -Dgtk2-utils=disabled -Dzlib=disabled
 
 # ---- 12. lcms2 (for poppler) ----------------------------------------------
 [ -d "$SRC/lcms2" ] || {
