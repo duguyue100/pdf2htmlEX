@@ -45,7 +45,8 @@ void Preprocessor::process(PDFDoc * doc)
     int page_count = (param.last_page - param.first_page + 1);
     for(int i = param.first_page; i <= param.last_page ; ++i) 
     {
-        cerr << "Preprocessing: " << (i-param.first_page) << "/" << page_count << '\r' << flush;
+        if(param.quiet == 0)
+            cerr << "Preprocessing: " << (i - param.first_page) << "/" << page_count << '\r' << flush;
 
         doc->displayPage(this, i, DEFAULT_DPI, DEFAULT_DPI,
                 0, 
@@ -54,17 +55,19 @@ void Preprocessor::process(PDFDoc * doc)
                 false, // printing
                 nullptr, nullptr, nullptr, nullptr);
     }
-    if(page_count >= 0)
+    if(page_count >= 0 && param.quiet == 0)
         cerr << "Preprocessing: " << page_count << "/" << page_count;
-    cerr << endl;
+
+    if(param.quiet == 0)
+        cerr << endl;
 }
 
 void Preprocessor::drawChar(GfxState *state, double x, double y,
       double dx, double dy,
       double originX, double originY,
-      CharCode code, int nBytes, Unicode *u, int uLen)
+      CharCode code, int nBytes, const Unicode *u, int uLen)
 {
-    GfxFont * font = state->getFont();
+    GfxFont * font = state->getFont().get();
     if(!font) return;
 
     long long fn_id = hash_ref(font->getID());

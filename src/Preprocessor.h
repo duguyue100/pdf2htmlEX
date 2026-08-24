@@ -30,16 +30,16 @@ public:
 
     void process(PDFDoc * doc);
 
-    virtual GBool upsideDown() { return gFalse; }
-    virtual GBool useDrawChar() { return gTrue; }
-    virtual GBool interpretType3Chars() { return gFalse; }
-    virtual GBool needNonText() { return gFalse; }
-    virtual GBool needClipToCropBox() { return gTrue; }
+    virtual bool upsideDown() { return false; }
+    virtual bool useDrawChar() { return true; }
+    virtual bool interpretType3Chars() { return false; }
+    virtual bool needNonText() { return false; }
+    virtual bool needClipToCropBox() { return true; }
 
     virtual void drawChar(GfxState *state, double x, double y,
       double dx, double dy,
       double originX, double originY,
-      CharCode code, int nBytes, Unicode *u, int uLen);
+      CharCode code, int nBytes, const Unicode *u, int uLen);
 
     // Start a page.
     // UGLY: These 2 versions are for different versions of poppler

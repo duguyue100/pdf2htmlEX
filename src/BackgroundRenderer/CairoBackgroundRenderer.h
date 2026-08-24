@@ -37,21 +37,21 @@ public:
 
   // Does this device use beginType3Char/endType3Char?  Otherwise,
   // text in Type 3 fonts will be drawn with drawChar/drawString.
-  virtual GBool interpretType3Chars() { return !param.process_type3; }
+  virtual bool interpretType3Chars() { return !param.process_type3; }
 
   virtual void drawChar(GfxState *state, double x, double y,
       double dx, double dy,
       double originX, double originY,
-      CharCode code, int nBytes, Unicode *u, int uLen);
+      CharCode code, int nBytes, const Unicode *u, int uLen);
 
   //for proof
   void beginTextObject(GfxState *state);
-  void beginString(GfxState *state, GooString * str);
+  void beginString(GfxState *state, const GooString * str);
   void endTextObject(GfxState *state);
   void updateRender(GfxState *state);
 
 protected:
-  virtual void setMimeData(Stream *str, Object *ref, cairo_surface_t *image);
+  virtual void setMimeData(GfxState *state, Stream *str, Object *ref, GfxImageColorMap *colorMap, cairo_surface_t *image);
 
 protected:
   HTMLRenderer * html_renderer;

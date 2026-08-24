@@ -66,10 +66,10 @@ string HTMLRenderer::dump_embedded_font (GfxFont * font, FontInfo & info)
 
         auto * id = font->getID();
 
-        Object ref_obj;
-        ref_obj.initRef(id->num, id->gen);
-        ref_obj.fetch(xref, &font_obj);
-        ref_obj.free();
+        Object ref_obj(*id);
+        //ref_obj.initRef(id->num, id->gen);
+        font_obj = ref_obj.fetch(xref);
+        //ref_obj.free();
 
         if(!font_obj.isDict())
         {
@@ -78,7 +78,8 @@ string HTMLRenderer::dump_embedded_font (GfxFont * font, FontInfo & info)
         }
 
         Dict * dict = font_obj.getDict();
-        if(dict->lookup("DescendantFonts", &font_obj2)->isArray())
+        font_obj2 = dict->lookup("DescendantFonts");
+        if(font_obj2.isArray())
         {
             if(font_obj2.arrayGetLength() == 0)
             {
@@ -86,27 +87,31 @@ string HTMLRenderer::dump_embedded_font (GfxFont * font, FontInfo & info)
             }
             else
             {
-                if(font_obj2.arrayGetLength() > 1)
+                if(font_obj2.arrayGetLength() > 1) {
                     cerr << "TODO: multiple entries in DescendantFonts array" << endl;
-
-                if(font_obj2.arrayGet(0, &obj2)->isDict())
+                }
+                
+                obj2 = font_obj2.arrayGet(0);
+                if(obj2.isDict())
                 {
                     dict = obj2.getDict();
                 }
             }
         }
 
-        if(!dict->lookup("FontDescriptor", &fontdesc_obj)->isDict())
+        fontdesc_obj = dict->lookup("FontDescriptor");
+        if(!fontdesc_obj.isDict())
         {
             cerr << "Cannot find FontDescriptor " << endl;
             throw 0;
         }
 
         dict = fontdesc_obj.getDict();
-
-        if(dict->lookup("FontFile3", &obj)->isStream())
+        obj = dict->lookup("FontFile3");
+        if(obj.isStream())
         {
-            if(obj.streamGetDict()->lookup("Subtype", &obj1)->isName())
+            obj1 = obj.streamGetDict()->lookup("Subtype");
+            if(obj1.isName())
             {
                 subtype = obj1.getName();
                 if(subtype == "Type1C")
@@ -132,19 +137,19 @@ string HTMLRenderer::dump_embedded_font (GfxFont * font, FontInfo & info)
                 cerr << "Invalid subtype in font descriptor" << endl;
                 throw 0;
             }
-        }
-        else if (dict->lookup("FontFile2", &obj)->isStream())
-        { 
-            suffix = ".ttf";
-        }
-        else if (dict->lookup("FontFile", &obj)->isStream())
-        {
-            suffix = ".pfa";
-        }
-        else
-        {
-            cerr << "Cannot find FontFile for dump" << endl;
-            throw 0;
+        } else {
+            obj = dict->lookup("FontFile2");
+            if (obj.isStream()) {
+                suffix = ".ttf";
+            } else {
+                obj = dict->lookup("FontFile");
+                if (obj.isStream()) {
+                    suffix = ".pfa";
+                } else {
+                    cerr << "Cannot find FontFile for dump" << endl;
+                    throw 0;
+                }
+            }
         }
 
         if(suffix == "")
@@ -164,7 +169,7 @@ string HTMLRenderer::dump_embedded_font (GfxFont * font, FontInfo & info)
 
         char buf[1024];
         int len;
-        while((len = obj.streamGetChars(1024, (Guchar*)buf)) > 0)
+        while((len = obj.streamGetChars(1024, (unsigned char*)buf)) > 0)
         {
             outf.write(buf, len);
         }
@@ -175,13 +180,13 @@ string HTMLRenderer::dump_embedded_font (GfxFont * font, FontInfo & info)
         cerr << "Something wrong when trying to dump font " << hex << fn_id << dec << endl;
     }
 
-    obj2.free();
-    obj1.free();
-    obj.free();
+    //obj2.free();
+    //obj1.free();
+    //obj.free();
 
-    fontdesc_obj.free();
-    font_obj2.free();
-    font_obj.free();
+    //fontdesc_obj.free();
+    //font_obj2.free();
+    //font_obj.free();
 
     return filepath;
 }
@@ -196,12 +201,12 @@ string HTMLRenderer::dump_type3_font (GfxFont * font, FontInfo & info)
     FT_Library ft_lib;
     FT_Init_FreeType(&ft_lib);
     CairoFontEngine font_engine(ft_lib); 
-    auto * cur_font = font_engine.getFont(font, cur_doc, true, xref);
+    auto cur_font = font_engine.getFont(std::shared_ptr<GfxFont>(font, [](GfxFont *) {}), cur_doc, true, xref);
     auto used_map = preprocessor.get_code_map(hash_ref(font->getID()));
 
     //calculate transformed metrics
-    double * font_bbox = font->getFontBBox();
-    double * font_matrix = font->getFontMatrix();
+    const double * font_bbox = font->getFontBBox();
+    const double * font_matrix = font->getFontMatrix();
     double transformed_bbox[4];
     memcpy(transformed_bbox, font_bbox, 4 * sizeof(double));
     /*
@@ -237,7 +242,7 @@ string HTMLRenderer::dump_type3_font (GfxFont * font, FontInfo & info)
         surface = cairo_svg_surface_create(glyph_filename.c_str(), transformed_bbox_width * scale, transformed_bbox_height * scale);
 
         cairo_svg_surface_restrict_to_version(surface, CAIRO_SVG_VERSION_1_2);
-        cairo_surface_set_fallback_resolution(surface, param.h_dpi, param.v_dpi);
+        cairo_surface_set_fallback_resolution(surface, param.actual_dpi, param.actual_dpi);
         cairo_t * cr = cairo_create(surface);
 
         // track the position of the origin
@@ -332,7 +337,7 @@ string HTMLRenderer::dump_type3_font (GfxFont * font, FontInfo & info)
                     &box, nullptr);
             output_dev->startDoc(cur_doc, &font_engine);
             output_dev->startPage(1, gfx->getState(), gfx->getXRef());
-            output_dev->setInType3Char(gTrue);
+            output_dev->setInType3Char(true);
             auto char_procs = ((Gfx8BitFont*)font)->getCharProcs();
             Object char_proc_obj;
             auto glyph_index = cur_font->getGlyph(code, nullptr, 0);
@@ -372,6 +377,14 @@ string HTMLRenderer::dump_type3_font (GfxFont * font, FontInfo & info)
     return "";
 #endif
 }
+
+namespace {
+
+void output_map_file_header(std::ostream& out) {
+    out << "glyph_code mapped_code unicode" << std::endl;
+}
+
+} // namespace
 
 void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo & info, bool get_metric_only)
 {
@@ -473,11 +486,10 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
             else
             {
                 ffw_reencode_glyph_order();
-                if(FoFiTrueType * fftt = FoFiTrueType::load((char*)filepath.c_str()))
+                if(auto fftt = FoFiTrueType::load((char*)filepath.c_str()))
                 {
-                    code2GID = font_8bit->getCodeToGIDMap(fftt);
+                    code2GID = font_8bit->getCodeToGIDMap(fftt.get());
                     code2GID_len = 256;
-                    delete fftt;
                 }
             }
         }
@@ -528,6 +540,7 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
             ffw_reencode_glyph_order();
 
             GfxCIDFont * _font = dynamic_cast<GfxCIDFont*>(font);
+            assert(_font != nullptr);
 
             // To locate CID2GID for the font
             // as in CairoFontEngine.cc
@@ -539,10 +552,9 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
             else
             {
                 // use the mapping stored in the file
-                if(FoFiTrueType * fftt = FoFiTrueType::load((char*)filepath.c_str()))
+                if(auto fftt = FoFiTrueType::load((char*)filepath.c_str()))
                 {
-                    code2GID = _font->getCodeToGIDMap(fftt, &code2GID_len);
-                    delete fftt;
+                    code2GID = _font->getCodeToGIDMap(fftt.get(), &code2GID_len);
                 }
             }
         }
@@ -574,12 +586,18 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
             map_filename = (char*)str_fmt("%s/f%llx.map", param.tmp_dir.c_str(), info.id);
             tmp_files.add(map_filename);
             map_outf.open(map_filename);
+            output_map_file_header(map_outf);
         }
 
         unordered_set<int> codeset;
         bool name_conflict_warned = false;
 
         auto ctu = font->getToUnicode();
+        // NOTE: Poppler has changed its effective ABI
+        // in now expects the USER to increment any ref counters
+        assert(ctu);
+        ((CharCodeToUnicode *)ctu)->incRefCnt();
+
         std::fill(cur_mapping.begin(), cur_mapping.end(), -1);
         std::fill(width_list.begin(), width_list.end(), -1);
 
@@ -616,10 +634,13 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
             if(mapped_code > max_key)
                 max_key = mapped_code;
 
-            Unicode u, *pu=&u;
+            Unicode u;
+            Unicode const *pu=&u;
             if(info.use_tounicode)
             {
-                int n = ctu ? (ctu->mapToUnicode(cur_code, &pu)) : 0;
+                int n = ctu ?
+                  (((CharCodeToUnicode *)ctu)->mapToUnicode(cur_code, &pu)) :
+                  0;
                 u = check_unicode(pu, n, cur_code, font);
             }
             else
@@ -650,6 +671,7 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
                         {
                             map_outf.close();
                             map_outf.open(map_filename);
+                            output_map_file_header(map_outf);
                         }
                         continue;
                     }
@@ -740,7 +762,7 @@ void HTMLRenderer::embed_font(const string & filepath, GfxFont * font, FontInfo 
         }
 
         if(ctu)
-            ctu->decRefCnt();
+            ((CharCodeToUnicode *)ctu)->decRefCnt();
     }
 
     /*
@@ -853,8 +875,8 @@ const FontInfo * HTMLRenderer::install_font(GfxFont * font)
     if(param.debug)
     {
         cerr << "Install font " << hex << new_fn_id << dec
-            << ": (" << (font->getID()->num) << ' ' << (font->getID()->gen) << ") " 
-            << (font->getName() ? font->getName()->getCString() : "")
+            << ": (" << (font->getID()->num) << ' ' << (font->getID()->gen) << ") "
+            << (font->getName() ? font->getName()->c_str() : "")
             << endl;
     }
 
@@ -884,11 +906,11 @@ const FontInfo * HTMLRenderer::install_font(GfxFont * font)
     /*
      * The 2nd parameter of locateFont should be true only for PS
      * which does not make much sense in our case
-     * If we specify gFalse here, font_loc->locType cannot be gfxFontLocResident
+     * If we specify false here, font_loc->locType cannot be gfxFontLocResident
      */
-    if(auto * font_loc = font->locateFont(xref, nullptr))
+    if(auto font_loc = font->locateFont(xref, nullptr))
     {
-        switch(font_loc -> locType)
+        switch(font_loc->locType)
         {
             case gfxFontLocEmbedded:
                 install_embedded_font(font, new_font_info);
@@ -903,8 +925,7 @@ const FontInfo * HTMLRenderer::install_font(GfxFont * font)
                 cerr << "TODO: other font loc" << endl;
                 export_remote_default_font(new_fn_id);
                 break;
-        }      
-        delete font_loc;
+        }
     }
     else
     {
@@ -931,7 +952,7 @@ void HTMLRenderer::install_embedded_font(GfxFont * font, FontInfo & info)
 
 void HTMLRenderer::install_external_font(GfxFont * font, FontInfo & info)
 {
-    string fontname(font->getName()->getCString());
+    string fontname(font->getName() ? font->getName()->c_str() : "");
 
     // resolve bad encodings in GB
     auto iter = GB_ENCODED_FONT_NAME_MAP.find(fontname); 
@@ -941,15 +962,14 @@ void HTMLRenderer::install_external_font(GfxFont * font, FontInfo & info)
         cerr << "Warning: workaround for font names in bad encodings." << endl;
     }
 
-    GfxFontLoc * localfontloc = font->locateFont(xref, nullptr);
+    auto localfontloc = font->locateFont(xref, nullptr);
 
     if(param.embed_external_font)
     {
-        if(localfontloc != nullptr)
+        if(localfontloc.has_value())
         {
-            embed_font(string(localfontloc->path->getCString()), font, info);
+            embed_font(localfontloc->path, font, info);
             export_remote_font(info, param.font_format, font);
-            delete localfontloc;
             return;
         }
         else
@@ -960,11 +980,10 @@ void HTMLRenderer::install_external_font(GfxFont * font, FontInfo & info)
     }
 
     // still try to get an idea of read ascent/descent
-    if(localfontloc != nullptr)
+    if(localfontloc.has_value())
     {
         // fill in ascent/descent only, do not embed
-        embed_font(string(localfontloc->path->getCString()), font, info, true);
-        delete localfontloc;
+        embed_font(localfontloc->path, font, info, true);
     }
     else
     {
@@ -977,6 +996,10 @@ void HTMLRenderer::install_external_font(GfxFont * font, FontInfo & info)
 
 void HTMLRenderer::export_remote_font(const FontInfo & info, const string & format, GfxFont * font)
 {
+    string css_turn_off_ligatures = "";
+    if (param.turn_off_ligatures) {
+    	css_turn_off_ligatures = "font-variant-ligatures:none;font-feature-settings: \"liga\" 0, \"clig\" 0, \"dlig\" 0, \"hlig\" 0, \"calt\" 0;";
+    }
     string css_font_format;
     if(format == "ttf")
     {
@@ -1038,6 +1061,7 @@ void HTMLRenderer::export_remote_font(const FontInfo & info, const string & form
              << "font-style:normal;"
              << "font-weight:normal;"
              << "visibility:visible;"
+             << css_turn_off_ligatures 
              << "}" 
              << endl;
 }

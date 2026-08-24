@@ -104,6 +104,7 @@ void HTMLRenderer::clipToStrokePath(GfxState * state)
 }
 void HTMLRenderer::reset_state()
 {
+    inTransparencyGroup = 0;
     draw_text_scale = 1.0;
 
     cur_font_size = 0.0;
@@ -206,7 +207,7 @@ void HTMLRenderer::check_state_change(GfxState * state)
     // font name & size
     if(all_changed || font_changed)
     {
-        const FontInfo * new_font_info = install_font(state->getFont());
+        const FontInfo * new_font_info = install_font(state->getFont().get());
 
         if(!(new_font_info->id == cur_text_state.font_info->id))
         {

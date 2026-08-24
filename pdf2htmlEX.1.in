@@ -175,6 +175,10 @@ Specify the format of fonts extracted from the PDF file.
 Decompose ligatures. For example 'fi' \-> 'f''i'.
 
 .TP
+.B \-\-turn\-off\-ligatures <0|1> (Default: 0)
+Explicitly tell browsers not to use ligatures.
+
+.TP
 .B \-\-auto\-hint <0|1> (Default: 0)
 If set to 1, hints will be generated for the fonts using FontForge. 
 
@@ -247,9 +251,10 @@ If set to 0, pdf2htmlEX would try its best to balance the two methods above.
 If set to 1, pdf2htmlEX will try to reduce the number of HTML elements used for text. Turn it off if anything goes wrong.
 
 .TP
-.B --correct-text-visibility <0|1> (Default: 0)
-If set to 1, pdf2htmlEX will try to detect texts covered by other graphics and properly arrange them, 
-i.e. covered texts are made transparent in text layer, and are drawn on background layer.
+.B --correct-text-visibility <0|1|2> (Default: 1)
+0 : Do not do visibility calculations for text
+1 : Text fully occluded will be drawn in the background layer
+2 : Text partially occluded will be drawn in the background layer (more false positives than option "1")
 
 .SS Background Image
 
@@ -358,7 +363,7 @@ pdf2htmlEX is written by Lu Wang <coolwanglu@gmail.com>
 .SH SEE ALSO
 .TP
 Home page
-https://github.com/coolwanglu/pdf2htmlEX
+https://github.com/pdf2htmlEX/pdf2htmlEX
 .TP
 pdf2htmlEX Wiki
-https://github.com/coolwanglu/pdf2htmlEX/wiki
+https://github.com/pdf2htmlEX/pdf2htmlEX/wiki

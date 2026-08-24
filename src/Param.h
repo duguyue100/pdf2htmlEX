@@ -22,7 +22,10 @@ struct Param
     double zoom;
     double fit_width, fit_height;
     int use_cropbox;
-    double h_dpi, v_dpi;
+    double desired_dpi;
+    double actual_dpi;
+    double max_dpi;
+    double text_dpi;
 
     // output
     int embed_css;
@@ -48,6 +51,7 @@ struct Param
     int embed_external_font;
     std::string font_format;
     int decompose_ligature;
+    int turn_off_ligatures;
     int auto_hint;
     std::string external_hint_tool;
     int stretch_narrow_glyph;
@@ -79,6 +83,7 @@ struct Param
     std::string tmp_dir;
     int debug;
     int proof;
+    int quiet;
 
     std::string input_filename, output_filename;
 };

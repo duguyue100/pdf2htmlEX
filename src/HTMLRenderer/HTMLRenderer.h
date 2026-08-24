@@ -16,7 +16,35 @@
 #include <GfxState.h>
 #include <Stream.h>
 #include <PDFDoc.h>
-#include <goo/gtypes.h>
+#include <Outline.h>
+
+/************ from goo/gtypes.h ***************/
+// #include <goo/gtypes.h>
+
+/*
+ * These have stupid names to avoid conflicts with some (but not all)
+ * C++ compilers which define them.
+ */
+//typedef bool GBool;
+//#define gTrue true
+//#define gFalse false
+
+//#ifdef _MSC_VER
+//#pragma warning(disable: 4800) /* 'type' : forcing value to bool 'true' or 'false' (performance warning) */
+//#endif
+
+/*
+ * These have stupid names to avoid conflicts with <sys/types.h>,
+ * which on various systems defines some random subset of these.
+ */
+//typedef unsigned char Guchar;
+//typedef unsigned short Gushort;
+//typedef unsigned int Guint;
+//typedef unsigned long Gulong;
+//typedef long long Goffset;
+
+/**********************************************/
+
 #include <Object.h>
 #include <GfxFont.h>
 #include <Annot.h>
@@ -47,7 +75,7 @@ namespace pdf2htmlEX {
 
 struct HTMLRenderer : OutputDev
 {
-    HTMLRenderer(const Param & param);
+    HTMLRenderer(const char* progPath, Param & param);
     virtual ~HTMLRenderer();
 
     void process(PDFDoc * doc);
@@ -58,28 +86,28 @@ struct HTMLRenderer : OutputDev
     
     // Does this device use upside-down coordinates?
     // (Upside-down means (0,0) is the top left corner of the page.)
-    virtual GBool upsideDown() { return gFalse; }
+    virtual bool upsideDown() { return false; }
 
     // Does this device use drawChar() or drawString()?
-    virtual GBool useDrawChar() { return gFalse; }
+    virtual bool useDrawChar() { return false; }
 
     // Does this device use functionShadedFill(), axialShadedFill(), and
     // radialShadedFill()?  If this returns false, these shaded fills
     // will be reduced to a series of other drawing operations.
-    virtual GBool useShadedFills(int type) { return (type == 2) ? gTrue: gFalse; }
+    virtual bool useShadedFills(int type) { return (type == 2) ? true: false; }
 
     // Does this device use beginType3Char/endType3Char?  Otherwise,
     // text in Type 3 fonts will be drawn with drawChar/drawString.
-    virtual GBool interpretType3Chars() { return gFalse; }
+    virtual bool interpretType3Chars() { return false; }
 
     // Does this device need non-text content?
-    virtual GBool needNonText() { return (param.process_nontext) ? gTrue: gFalse; }
+    virtual bool needNonText() { return (param.process_nontext) ? true: false; }
 
     // Does this device need to clip pages to the crop box even when the
     // box is the crop box?
-    virtual GBool needClipToCropBox() { return gTrue; }
+    virtual bool needClipToCropBox() { return true; }
 
-    virtual void setDefaultCTM(double *ctm);
+    virtual void setDefaultCTM(const double *ctm);
 
     // Start a page.
     virtual void startPage(int pageNum, GfxState *state, XRef * xref);
@@ -126,23 +154,32 @@ struct HTMLRenderer : OutputDev
     virtual void eoClip(GfxState * state);
     virtual void clipToStrokePath(GfxState * state);
     
-    virtual void drawString(GfxState * state, GooString * s);
+    virtual void drawString(GfxState * state, const GooString * s);
 
-    virtual void drawImage(GfxState * state, Object * ref, Stream * str, int width, int height, GfxImageColorMap * colorMap, GBool interpolate, int *maskColors, GBool inlineImg);
+    virtual void drawImage(GfxState * state, Object * ref, Stream * str,
+                 int width, int height, GfxImageColorMap * colorMap,
+                 bool interpolate, const int *maskColors, bool inlineImg);
 
     virtual void drawSoftMaskedImage(GfxState *state, Object *ref, Stream *str,
                        int width, int height,
                        GfxImageColorMap *colorMap,
-                       GBool interpolate,
+                       bool interpolate,
                        Stream *maskStr,
                        int maskWidth, int maskHeight,
                        GfxImageColorMap *maskColorMap,
-                       GBool maskInterpolate);
+                       bool maskInterpolate);
 
     virtual void stroke(GfxState *state); 
     virtual void fill(GfxState *state);
     virtual void eoFill(GfxState *state);
-    virtual GBool axialShadedFill(GfxState *state, GfxAxialShading *shading, double tMin, double tMax);
+    virtual bool axialShadedFill(GfxState *state, GfxAxialShading *shading, double tMin, double tMax);
+
+  virtual void beginTransparencyGroup(GfxState * /*state*/, const double * /*bbox*/,
+                                      GfxColorSpace * /*blendingColorSpace*/,
+                                      bool /*isolated*/, bool /*knockout*/,
+                                      bool /*forSoftMask*/);
+  virtual void endTransparencyGroup(GfxState * /*state*/);
+
 
     virtual void processLink(AnnotLink * al);
 
@@ -163,7 +200,7 @@ protected:
     void post_process(void);
 
     void process_outline(void);
-    void process_outline_items(GooList * items);
+    void process_outline_items(const std::vector<OutlineItem*> * items);
 
     void process_form(std::ofstream & out);
     
@@ -172,7 +209,7 @@ protected:
     void dump_css(void);
 
     // convert a LinkAction to a string that our Javascript code can understand
-    std::string get_linkaction_str(LinkAction *, std::string & detail);
+    std::string get_linkaction_str(const LinkAction *, std::string & detail);
 
     ////////////////////////////////////////////////////
     /*
@@ -245,11 +282,12 @@ protected:
     double print_scale (void) const { return 96.0 / DEFAULT_DPI / text_zoom_factor(); }
 
 
-    const Param & param;
+    Param & param;
 
     ////////////////////////////////////////////////////
     // PDF states
     ////////////////////////////////////////////////////
+    int inTransparencyGroup;
     // track the original (unscaled) values to determine scaling and merge lines
     // current position
     double cur_tx, cur_ty; // real text position, in text coords
@@ -311,7 +349,7 @@ protected:
     
     // for font reencoding
     std::vector<int32_t> cur_mapping; 
-    std::vector<char*> cur_mapping2;
+    std::vector<const char*> cur_mapping2;
     std::vector<int> width_list; // width of each char
 
     Preprocessor preprocessor;
