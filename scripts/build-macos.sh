@@ -23,7 +23,10 @@ mkdir -p "$STAGE" "$SRC" "$DIST"
 fetch() {
     local url="$1"
     local f="$SRC/$(basename "$url")"
-    [ -f "$f" ] || curl -LfsS "$url" -o "$f"
+    if [ ! -f "$f" ]; then
+        # retry: some mirrors (savannah) intermittently return 5xx
+        curl -LfsS --retry 4 --retry-delay 5 --retry-all-errors "$url" -o "$f"
+    fi
     echo "$f"
 }
 
@@ -125,8 +128,8 @@ fi
 
 # ---- 9. freetype -----------------------------------------------------------
 [ -d "$SRC/freetype" ] || {
-    f=$(fetch https://download.savannah.gnu.org/releases/freetype/freetype-2.13.2.tar.xz)
-    mkdir "$SRC/freetype" && tar -xJf "$f" --strip-components=1 -C "$SRC/freetype"
+    f=$(fetch https://gitlab.freedesktop.org/freetype/freetype/-/archive/VER-2-13-2/freetype-VER-2-13-2.tar.gz)
+    mkdir "$SRC/freetype" && tar -xzf "$f" --strip-components=1 -C "$SRC/freetype"
 }
 [ -f "$STAGE/lib/libfreetype.a" ] || cmake_bi "$SRC/freetype" \
     -DFT_DISABLE_HARFBUZZ=ON -DFT_DISABLE_BROTLI=ON -DFT_DISABLE_BZIP2=ON \
