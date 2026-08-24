@@ -166,6 +166,7 @@ if [ ! -f "$STAGE/lib/liblcms2.a" ]; then
 fi
 
 # ---- 13. poppler (static, internal headers exported) -----------------------
+# boost is only an allocation micro-optimization in splash; skip the brew dep
 POPPLER_VERSION=24.01.0
 [ -d "$SRC/poppler-src" ] || {
     f=$(fetch https://poppler.freedesktop.org/poppler-${POPPLER_VERSION}.tar.xz)
@@ -179,6 +180,7 @@ POPPLER_VERSION=24.01.0
         -DENABLE_GLIB=OFF -DENABLE_CPP=OFF -DENABLE_QT5=OFF -DENABLE_QT6=OFF \
         -DENABLE_UTILS=OFF -DENABLE_LIBOPENJPEG=none -DENABLE_CMS=lcms2 \
         -DENABLE_LIBTIFF=OFF \
+        -DENABLE_BOOST=OFF \
         -DENABLE_LIBCURL=OFF -DENABLE_NSS3=OFF -DENABLE_GPGME=OFF \
         -DFREETYPE_LIBRARY="$STAGE/lib/libfreetype.a" \
         -DJPEG_LIBRARY="$STAGE/lib/libjpeg.a"
