@@ -29,11 +29,14 @@ fetch() {
 
 cmake_bi() { # cmake_bi <srcdir> [extra cmake args...]
     local src="$1"; shift
+    # CMake >= 4 removed support for cmake_minimum_required(<3.5);
+    # this flag lets older dep sources configure anyway
     cmake -S "$src" -B "$src/build" -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="$STAGE" \
         -DBUILD_SHARED_LIBS=OFF \
         -DCMAKE_OSX_ARCHITECTURES="${ARCH:-arm64}" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
         "$@"
     cmake --build "$src/build" -j"$NPROC"
     cmake --install "$src/build"
