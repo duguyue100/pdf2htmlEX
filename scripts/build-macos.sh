@@ -108,7 +108,7 @@ fi
     mkdir "$SRC/glib" && tar -xJf "$f" --strip-components=1 -C "$SRC/glib"
 }
 [ -f "$STAGE/lib/libglib-2.0.a" ] || meson_bi "$SRC/glib" \
-    -Dnls=false -Dintrospection=false -Ddocumentation=false -Dman-pages=disabled \
+    -Dnls=disabled -Dintrospection=disabled -Ddocumentation=false -Dman-pages=disabled \
     -Dtests=false -Dinstalled_tests=false -Dlibmount=disabled -Dselinux=disabled \
     -Dsysprof=disabled -Dglib_debug=disabled -Dglib_assert=false
 
