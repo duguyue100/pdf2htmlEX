@@ -81,8 +81,8 @@ EOF
   esac
 done
 
-asset="$(detect_asset_name)"
-platform="$(echo "$asset" | sed 's/^pdf2htmlEX-//; s/\.tar\.gz$//')"
+asset_prefix="$(detect_asset_name)"   # e.g. pdf2htmlEX-linux-x86_64.tar.gz
+platform="$(echo "$asset_prefix" | sed 's/^pdf2htmlEX-//; s/\.tar\.gz$//')"
 info "Detected platform: ${platform}"
 
 check_cmd curl || die "'curl' not found."
@@ -95,15 +95,22 @@ release_json="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest
 tag="$(echo "${release_json}" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
 [[ -n "$tag" ]] || die "Could not determine latest release tag."
 
-download_url="https://github.com/${REPO}/releases/download/${tag}/${asset}"
+# assets are named pdf2htmlEX-<version>-<os>-<arch>.tar.gz since v0.19.1
+# and pdf2htmlEX-<os>-<arch>.tar.gz before that; match by os/arch parts
+base="${asset_prefix#pdf2htmlEX-}"    # <os>-<arch>.tar.gz
+download_url="$(echo "${release_json}" \
+    | grep -o "\"browser_download_url\": *\"[^\"]*\"" \
+    | sed 's/.*"browser_download_url": *"//; s/"$//' \
+    | grep -F "/pdf2htmlEX-" | grep -F -- "-${base}$" | head -1)"
+[[ -n "${download_url}" ]] || die "No release asset found for platform ${platform} (${tag})."
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-info "Downloading ${asset} (${tag})..."
-curl -fSL --retry 3 --progress-bar "${download_url}" -o "${TMP_DIR}/${asset}" \
+info "Downloading $(basename "${download_url}") (${tag})..."
+curl -fSL --retry 3 --progress-bar "${download_url}" -o "${TMP_DIR}/asset.tar.gz" \
   || die "Download failed: ${download_url}"
 
-tar -xzf "${TMP_DIR}/${asset}" -C "${TMP_DIR}"
+tar -xzf "${TMP_DIR}/asset.tar.gz" -C "${TMP_DIR}"
 [ -f "${TMP_DIR}/pkg/bin/pdf2htmlEX" ] || die "Unexpected archive layout: pkg/bin/pdf2htmlEX missing."
 
 ensure_dirs

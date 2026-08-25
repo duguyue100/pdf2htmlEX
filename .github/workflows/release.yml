@@ -32,15 +32,34 @@ jobs:
         run: |
           mkdir -p dist
           docker run --rm pdf2htmlex-static tar -cC /out . | tar -xC dist
+          mv dist/pdf2htmlEX-linux-*.tar.gz \
+             "dist/pdf2htmlEX-${GITHUB_REF_NAME}-linux-${{ matrix.arch }}.tar.gz"
 
       - name: Build (macos)
         if: runner.os == 'macOS'
         run: ./scripts/build-macos.sh
 
+      - name: Rename tarball (macos)
+        if: runner.os == 'macOS'
+        run: mv dist/pdf2htmlEX-macos-arm64.tar.gz \
+                "dist/pdf2htmlEX-${GITHUB_REF_NAME}-macos-arm64.tar.gz"
+
       - uses: actions/upload-artifact@v4
         with:
           name: pdf2htmlEX-${{ matrix.os }}-${{ matrix.arch }}
           path: dist/*.tar.gz
+
+      - name: Smoke-test installed layout (linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p /tmp/inst/bin /tmp/inst/share
+          tar -xzf "dist/pdf2htmlEX-${GITHUB_REF_NAME}-linux-${{ matrix.arch }}.tar.gz" -C /tmp/inst
+          cp /tmp/inst/pkg/bin/pdf2htmlEX /tmp/inst/bin/
+          cp -R /tmp/inst/pkg/share/pdf2htmlEX /tmp/inst/share/
+          rm -rf /usr/local/share/pdf2htmlEX
+          cd /
+          PATH="/tmp/inst/bin:$PATH" pdf2htmlEX $GITHUB_WORKSPACE/test/data/smoke.pdf /tmp/out.html >/dev/null 2>&1
+          grep -q "Hello pdf2htmlEX revived" /tmp/out.html && echo "INSTALLED-LAYOUT SMOKE TEST PASSED"
 
   release:
     needs: build
