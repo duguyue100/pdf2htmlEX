@@ -149,10 +149,12 @@ fi
     mkdir "$SRC/cairo" && tar -xJf "$f" --strip-components=1 -C "$SRC/cairo"
 }
 # zlib pulls in the cairo-script interpreter and its lzo dep,
-# neither used by pdf2htmlEX (image+svg surfaces only)
+# neither used by pdf2htmlEX (image+svg surfaces only);
+# freetype/fontconfig/png forced on — pdf2htmlEX needs cairo-ft.h
 [ -f "$STAGE/lib/libcairo.a" ] || meson_bi "$SRC/cairo" \
     -Dtests=disabled -Dxlib=disabled -Dxcb=disabled -Dspectre=disabled \
-    -Dsymbol-lookup=disabled -Dgtk2-utils=disabled -Dzlib=disabled
+    -Dsymbol-lookup=disabled -Dgtk2-utils=disabled -Dzlib=disabled \
+    -Dfreetype=enabled -Dfontconfig=enabled -Dpng=enabled
 
 # ---- 12. lcms2 (for poppler) ----------------------------------------------
 [ -d "$SRC/lcms2" ] || {
