@@ -130,9 +130,9 @@ void SplashBackgroundRenderer::embed_image(int pageno)
 //
 	auto * bitmap = getBitmap();
 	xmin = 0;
-	xmax = bitmap->getWidth();
+	xmax = bitmap->getWidth() - 1;
 	ymin = 0;
-	ymax = bitmap->getHeight();
+	ymax = bitmap->getHeight() - 1;
 //
 // end of hack
 	

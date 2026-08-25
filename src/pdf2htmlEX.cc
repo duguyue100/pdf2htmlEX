@@ -356,7 +356,42 @@ void check_param()
     }
 }
 
+// deep recursive parsing in poppler can exhaust the default stack (notably
+// on musl); run the actual conversion on a thread with a generous stack
+static int run_conversion(int argc, char **argv);
+
+struct MainArgs { int argc; char **argv; int rc; };
+
+#if !defined(__MINGW32__)
+#include <pthread.h>
+static void *conversion_thread(void *arg)
+{
+    MainArgs *a = (MainArgs *)arg;
+    a->rc = run_conversion(a->argc, a->argv);
+    return nullptr;
+}
+#endif
+
 int main(int argc, char **argv)
+{
+    MainArgs args = { argc, argv, EXIT_FAILURE };
+#if defined(__MINGW32__)
+    args.rc = run_conversion(argc, argv);
+#else
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 512ull << 20);
+    pthread_t tid;
+    if (pthread_create(&tid, &attr, conversion_thread, &args) == 0)
+        pthread_join(tid, nullptr);
+    else
+        args.rc = run_conversion(argc, argv);
+    pthread_attr_destroy(&attr);
+#endif
+    return args.rc;
+}
+
+static int run_conversion(int argc, char **argv)
 {
     // We need to adjust these directories before parsing the options.
 #if defined(__MINGW32__)
