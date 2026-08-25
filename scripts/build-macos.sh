@@ -195,7 +195,12 @@ FONTFORGE_VERSION=20230101
 }
 [ -f "$STAGE/lib/libfontforge.a" ] || {
     sed -i.bak 's/add_custom_target(pofiles ALL/add_custom_target(pofiles/' "$SRC/fontforge/po/CMakeLists.txt"
-    cmake_bi "$SRC/fontforge" \
+    cmake -S "$SRC/fontforge" -B "$SRC/fontforge/build" -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="$STAGE" \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_OSX_ARCHITECTURES="${ARCH:-arm64}" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
         -DBUILD_TESTING=OFF \
         -DENABLE_GUI=OFF -DENABLE_X11=OFF -DENABLE_LIBSPIRO=OFF \
         -DENABLE_LIBTIFF=OFF -DENABLE_WOFF2=OFF \
@@ -203,6 +208,9 @@ FONTFORGE_VERSION=20230101
         -DENABLE_DOCS=OFF \
         -DFREETYPE_LIBRARY="$STAGE/lib/libfreetype.a" \
         -DFREETYPE_INCLUDE_DIR="$STAGE/include/freetype2"
+    # build only the library: the fontforge CLI exe drags in readline etc.
+    # and is not needed by pdf2htmlEX
+    cmake --build "$SRC/fontforge/build" --target fontforge -j"$NPROC"
     cp "$SRC/fontforge/build/lib/libfontforge.a" "$STAGE/lib/"
     mkdir -p "$STAGE/include/fontforge"
     cp "$SRC"/fontforge/inc/*.h "$STAGE/include/fontforge/"
@@ -221,7 +229,7 @@ cmake -S "$ROOT" -B "$BUILD/pdf2htmlex" -G Ninja \
     -DPOPPLER_SOURCE_DIR="$SRC/poppler-src" \
     -DFREETYPE_LIBRARY="$STAGE/lib/libfreetype.a" \
     -DPDF2HTMLEX_TRANSITIVE_DEPS="fontconfig;libjpeg;libpng16;lcms2;gobject-2.0;gio-2.0" \
-    -DPDF2HTMLEX_EXTRA_STATIC_LIBS="-lexpat;-liconv;-L$SRC/glib/build/subprojects/proxy-libintl;-lintl;-Wl,-framework,CoreFoundation;-Wl,-framework,Foundation" \
+    -DPDF2HTMLEX_EXTRA_STATIC_LIBS="-lexpat;-liconv;-L$SRC/glib/build/subprojects/proxy-libintl;-lintl;-lffi;-lpcre2-8;-lgmodule-2.0;-lresolv;-Wl,-framework,CoreFoundation;-Wl,-framework,Foundation" \
     -DCMAKE_EXE_LINKER_FLAGS="-L$STAGE/lib"
 cmake --build "$BUILD/pdf2htmlex" -j"$NPROC"
 
