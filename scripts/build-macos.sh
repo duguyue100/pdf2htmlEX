@@ -206,6 +206,7 @@ FONTFORGE_VERSION=20230101
         -DBUILD_TESTING=OFF \
         -DENABLE_GUI=OFF -DENABLE_X11=OFF -DENABLE_LIBSPIRO=OFF \
         -DENABLE_LIBTIFF=OFF -DENABLE_WOFF2=OFF \
+        -DENABLE_LIBGIF=OFF -DENABLE_LIBREADLINE=OFF \
         -DENABLE_PYTHON_SCRIPTING=OFF -DENABLE_NATIVE_SCRIPTING=ON \
         -DENABLE_DOCS=OFF \
         -DFREETYPE_LIBRARY="$STAGE/lib/libfreetype.a" \
@@ -219,6 +220,10 @@ FONTFORGE_VERSION=20230101
     cp "$SRC"/fontforge/fontforge/*.h "$STAGE/include/fontforge/"
     cp "$SRC"/fontforge/build/inc/*.h "$STAGE/include/fontforge/" 2>/dev/null || true
 }
+# proxy-libintl (glib subproject) may not be installed by glib's meson;
+# make sure -lintl can find it
+find "$SRC/glib/build/subprojects/proxy-libintl" -name "libintl*.a" \
+    -exec cp {} "$STAGE/lib/" \; 2>/dev/null || true
 
 # ---- 15. pdf2htmlEX --------------------------------------------------------
 # static glib drags in iconv, proxy-libintl and the Foundation framework;
@@ -232,7 +237,7 @@ cmake -S "$ROOT" -B "$BUILD/pdf2htmlex" -G Ninja \
     -DFREETYPE_LIBRARY="$STAGE/lib/libfreetype.a" \
     -DPDF2HTMLEX_TRANSITIVE_DEPS="fontconfig;libjpeg;libpng16;lcms2;gobject-2.0;gio-2.0" \
     -DPDF2HTMLEX_GIF_LIBRARY="" \
-    -DPDF2HTMLEX_EXTRA_STATIC_LIBS="-lexpat;-liconv;-L$SRC/glib/build/subprojects/proxy-libintl;-lintl;-lffi;-lpcre2-8;-lgmodule-2.0;-lresolv;-Wl,-framework,CoreFoundation;-Wl,-framework,Foundation" \
+    -DPDF2HTMLEX_EXTRA_STATIC_LIBS="-lexpat;-lxml2;-liconv;-L$SRC/glib/build/subprojects/proxy-libintl;-lintl;-lffi;-lpcre2-8;-lgmodule-2.0;-lresolv;-Wl,-framework,CoreFoundation;-Wl,-framework,Foundation" \
     -DCMAKE_EXE_LINKER_FLAGS="-L$STAGE/lib"
 cmake --build "$BUILD/pdf2htmlex" -j"$NPROC"
 
