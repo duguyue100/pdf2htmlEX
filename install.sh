@@ -18,28 +18,26 @@ die()     { echo "[pdf2htmlEX] ✗ $*" >&2; exit 1; }
 
 check_cmd() { command -v "$1" >/dev/null 2>&1; }
 
-detect_asset_name() {
+detect_platform() {
   local os arch
   os="$(uname -s | tr '[:upper:]' '[:lower:]')"
   arch="$(uname -m)"
 
   case "$os" in
     linux)  ;;
-    darwin) ;;
-    *) die "Unsupported OS: $os. Only linux and darwin are supported." ;;
+    darwin) os="macos" ;;
+    *) die "Unsupported OS: $os. Only linux and macOS are supported." ;;
   esac
 
   case "$arch" in
-    x86_64)        [ "$os" = "linux" ] || die "macOS builds are arm64-only."
+    x86_64|amd64)  [ "$os" = "linux" ] || die "macOS builds are arm64-only."
                    arch="x86_64" ;;
-    amd64)         [ "$os" = "linux" ] || die "macOS builds are arm64-only."
-                   arch="x86_64" ;;
-    aarch64|arm64) arch="aarch64"
-                   [ "$os" = "linux" ] && arch="aarch64" || arch="arm64" ;;
+    aarch64)       arch="aarch64" ;;
+    arm64)         arch="arm64" ;;
     *) die "Unsupported architecture: $arch. Only x86_64 and arm64/aarch64 are supported." ;;
   esac
 
-  echo "pdf2htmlEX-${os}-${arch}.tar.gz"
+  echo "${os}-${arch}"
 }
 
 ensure_dirs() {
@@ -81,34 +79,29 @@ EOF
   esac
 done
 
-asset_prefix="$(detect_asset_name)"   # e.g. pdf2htmlEX-linux-x86_64.tar.gz
-platform="$(echo "$asset_prefix" | sed 's/^pdf2htmlEX-//; s/\.tar\.gz$//')"
+platform="$(detect_platform)"   # e.g. macos-arm64, linux-x86_64
 info "Detected platform: ${platform}"
 
 check_cmd curl || die "'curl' not found."
 check_cmd tar  || die "'tar' not found."
 
-info "Fetching latest release info..."
-release_json="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest")" \
-  || die "Failed to fetch release info. Check your internet connection."
-
-tag="$(echo "${release_json}" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
-[[ -n "$tag" ]] || die "Could not determine latest release tag."
-
-# assets are named pdf2htmlEX-<version>-<os>-<arch>.tar.gz since v0.19.1
-# and pdf2htmlEX-<os>-<arch>.tar.gz before that; match by os/arch parts
-base="${asset_prefix#pdf2htmlEX-}"    # <os>-<arch>.tar.gz
-download_url="$(echo "${release_json}" \
-    | grep -o "\"browser_download_url\": *\"[^\"]*\"" \
-    | sed 's/.*"browser_download_url": *"//; s/"$//' \
-    | grep -F "/pdf2htmlEX-" | grep -F -- "-${base}$" | head -1)"
-[[ -n "${download_url}" ]] || die "No release asset found for platform ${platform} (${tag})."
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-info "Downloading $(basename "${download_url}") (${tag})..."
-curl -fSL --retry 3 --progress-bar "${download_url}" -o "${TMP_DIR}/asset.tar.gz" \
-  || die "Download failed: ${download_url}"
+# resolve latest tag via the releases/latest redirect (no API rate limits)
+info "Resolving latest release..."
+redirect="$(curl -fsSI --connect-timeout 10 --max-time 30 -o /dev/null \
+  -w '%{redirect_url}' "https://github.com/${REPO}/releases/latest")" \
+  || die "Could not reach github.com (connection failed or timed out)."
+tag="${redirect##*/}"
+[[ "$tag" == v* ]] || die "Could not determine the latest release tag. Check https://github.com/${REPO}/releases"
+
+asset="pdf2htmlEX-${tag}-${platform}.tar.gz"
+download_url="https://github.com/${REPO}/releases/download/${tag}/${asset}"
+
+info "Downloading ${asset}..."
+curl -fSL --retry 3 --connect-timeout 10 --max-time 900 --progress-bar "${download_url}" -o "${TMP_DIR}/asset.tar.gz" \
+  || die "Download failed (${asset}). See https://github.com/${REPO}/releases for available assets."
 
 tar -xzf "${TMP_DIR}/asset.tar.gz" -C "${TMP_DIR}"
 [ -f "${TMP_DIR}/pkg/bin/pdf2htmlEX" ] || die "Unexpected archive layout: pkg/bin/pdf2htmlEX missing."
