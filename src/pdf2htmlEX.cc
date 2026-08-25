@@ -419,6 +419,14 @@ int main(int argc, char **argv)
             }
         }
     }
+    // statically linked fontconfig bakes in the build machine's sysconfdir;
+    // prefer a fonts.conf shipped next to our resources
+    {
+        const char * fcp = getenv("FONTCONFIG_PATH");
+        struct stat st;
+        if ((!fcp || !*fcp) && ::stat((param.data_dir + "/fontconfig/fonts.conf").c_str(), &st) == 0)
+            setenv("FONTCONFIG_PATH", (param.data_dir + "/fontconfig").c_str(), 1);
+    }
 #endif
 
     if (getenv("APPDIR")) {

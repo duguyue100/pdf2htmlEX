@@ -26,3 +26,4 @@ src/util/css_const.h
 # misc
 *.pyc
 compile_commands.json
+*.pdf
