@@ -11,7 +11,7 @@ option(ENABLE_SVG "Enable SVG support, for generating SVG background images and 
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
 if(NOT DEFINED PDF2HTMLEX_VERSION)
-    set(PDF2HTMLEX_VERSION "0.18.8")
+    set(PDF2HTMLEX_VERSION "0.19.0")
 endif()
 set(ARCHIVE_NAME pdf2htmlex-${PDF2HTMLEX_VERSION})
 add_custom_target(dist
