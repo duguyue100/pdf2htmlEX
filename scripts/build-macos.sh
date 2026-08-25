@@ -175,7 +175,7 @@ POPPLER_VERSION=24.01.0
 [ -f "$STAGE/lib/libpoppler.a" ] || {
     mkdir -p "$SRC/poppler-src/test"
     cmake_bi "$SRC/poppler-src" \
-        -DBUILD_TESTING=OFF \
+        -DBUILD_TESTING=OFF -DBUILD_MANUAL_TESTS=OFF \
         -DENABLE_UNSTABLE_API_ABI_HEADERS=ON \
         -DFONT_CONFIGURATION=fontconfig \
         -DENABLE_GLIB=OFF -DENABLE_CPP=OFF -DENABLE_QT5=OFF -DENABLE_QT6=OFF \
