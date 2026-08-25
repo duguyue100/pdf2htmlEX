@@ -91,7 +91,10 @@ foreach(_mod ${PDF2HTMLEX_TRANSITIVE_DEPS})
         include_directories(${PC_${_mod}_INCLUDE_DIRS})
     endif()
 endforeach()
-list(APPEND PDF2HTMLEX_LIBS -lgif -lz -lm -lpthread)
+# giflib has no pkg-config file; clear this where it is not available
+set(PDF2HTMLEX_GIF_LIBRARY "-lgif" CACHE STRING
+    "Link flags for giflib (empty if unavailable)")
+list(APPEND PDF2HTMLEX_LIBS ${PDF2HTMLEX_GIF_LIBRARY} -lz -lm -lpthread)
 
 # fully-static builds may need extra low-level archives appended after
 # everything else so ld can resolve transitive references
