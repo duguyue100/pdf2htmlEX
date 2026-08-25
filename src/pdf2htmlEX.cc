@@ -13,6 +13,9 @@
 #include <memory>
 #include <errno.h>
 #include <sys/stat.h>
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
 
 #include <getopt.h>
 
@@ -375,16 +378,34 @@ int main(int argc, char **argv)
     param.data_dir = PDF2HTMLEX_DATA_PATH;
 
     // if the compile-time data-dir does not exist, fall back to a location
-    // relative to the executable (portable tarball deployments)
+    // relative to the executable (portable tarball deployments).
+    // Resolve the real executable path (not argv[0], which may contain no
+    // slash at all when invoked through PATH).
     {
         struct stat st;
-        if (::stat(param.data_dir.c_str(), &st) != 0 && argv[0][0])
+        if (::stat(param.data_dir.c_str(), &st) != 0)
         {
-            std::string arg0(argv[0]);
-            auto pos = arg0.rfind('/');
+            std::string self;
+#if defined(__linux__)
+            char buf[4096];
+            ssize_t n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+            if (n > 0) { buf[n] = 0; self = buf; }
+#elif defined(__APPLE__)
+            uint32_t size = 0;
+            if (_NSGetExecutablePath(nullptr, &size) != 0)
+            {
+                std::string buf(size + 1, 0);
+                if (_NSGetExecutablePath(&buf[0], &size) == 0)
+                    self = buf.c_str();
+            }
+#endif
+            if (self.empty())
+                self = argv[0];
+
+            auto pos = self.rfind('/');
             if (pos != std::string::npos)
             {
-                std::string base = arg0.substr(0, pos);
+                std::string base = self.substr(0, pos);
                 const char * candidates[] = { "/../share/pdf2htmlEX", "/../share" };
                 for(auto cand : candidates)
                 {
