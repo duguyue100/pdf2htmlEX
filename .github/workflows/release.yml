@@ -43,9 +43,11 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           ls -la dist/ || true
-          find . -maxdepth 4 -name '*.tar.gz' -not -path './dist/*' || true
-          f=$(find . -maxdepth 4 -name 'pdf2htmlEX-macos-*.tar.gz' -not -path './dist/*' | head -1)
-          [ -n "$f" ] || { echo "ERROR: no pdf2htmlEX-macos-*.tar.gz produced by build-macos.sh" >&2; exit 1; }
+          f="dist/pdf2htmlEX-macos-arm64.tar.gz"
+          if [ ! -f "$f" ]; then
+            f=$(find . -maxdepth 4 -name 'pdf2htmlEX-macos-*.tar.gz' | head -1)
+          fi
+          [ -n "$f" ] && [ -f "$f" ] || { echo "ERROR: macos tarball not found" >&2; exit 1; }
           mv -v "$f" "dist/pdf2htmlEX-${GITHUB_REF_NAME}-macos-arm64.tar.gz"
 
       - uses: actions/upload-artifact@v4
