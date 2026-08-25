@@ -14,6 +14,7 @@ BUILD="$ROOT/build-macos"
 STAGE="$BUILD/staging"
 SRC="$BUILD/src"
 DIST="$ROOT/dist"
+ARCH="${ARCH:-$(uname -m)}"
 NPROC="$(sysctl -n hw.ncpu)"
 
 export PKG_CONFIG_PATH="$STAGE/lib/pkgconfig"
