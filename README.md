@@ -13,6 +13,27 @@ pdf2htmlEX is no longer under active development. New maintainers are [wanted](h
 - **Full Circle Magazine** (read while downloading): [HTML](http://coolwanglu.github.io/pdf2htmlEX/demo/issue65_en.html) / [PDF](http://dl.fullcirclemagazine.org/issue65_en.pdf)
 - **Git Manual** (CJK support): [HTML](http://coolwanglu.github.io/pdf2htmlEX/demo/chn.html) / [PDF](http://files.cnblogs.com/phphuaibei/git%E6%90%AD%E5%BB%BA.pdf)
 
+## Install
+
+One-liner (downloads the latest release, installs to `~/.local`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/duguyue100/pdf2htmlEX/master/install.sh | bash
+```
+
+Or download a tarball from [Releases](https://github.com/duguyue100/pdf2htmlEX/releases)
+and copy the two directories into your prefix:
+
+```bash
+tar -xzf pdf2htmlEX-<platform>.tar.gz
+cp pkg/bin/pdf2htmlEX ~/.local/bin/
+cp -R pkg/share/pdf2htmlEX ~/.local/share/
+```
+
+The binary is fully static/self-contained and finds its resources in
+`share/pdf2htmlEX` relative to its own location — keep `bin/` and the
+matching `share/pdf2htmlEX/` together under the same prefix.
+
 ## Building (revived)
 
 This repository has been revived to build against **poppler 24.01** and
