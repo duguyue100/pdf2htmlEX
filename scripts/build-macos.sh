@@ -258,7 +258,7 @@ rm -f "$PKG/share/pdf2htmlEX"/*.in "$PKG/share/pdf2htmlEX"/build_*.sh
 
 TMP=$(mktemp -d)
 set +e
-"$PKG/bin/pdf2htmlEX" "$ROOT/test/data/smoke.pdf" "$TMP/s.html"
+"$PKG/bin/pdf2htmlEX" --dest-dir "$TMP" "$ROOT/test/data/smoke.pdf" s.html
 echo "pdf2htmlEX exit code: $?"
 set -e
 ls -la "$TMP" || true
