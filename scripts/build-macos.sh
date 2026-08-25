@@ -230,7 +230,7 @@ find "$SRC/glib/build/subprojects/proxy-libintl" -name "libintl*.a" \
 # system libiconv/libSystem stay dynamic, which is unavoidable on macOS.
 # NLS is stubbed out (scripts/libintl_stub.c) instead of linking a real
 # gettext — output is English-only by design.
-cc -c "$ROOT/scripts/libintl_stub.c" -o "$BUILD/libintl_stub.o" -arch "${ARCH:-arm64}"
+cc -c "$ROOT/scripts/libintl_stub.c" -o "$BUILD/libintl_stub.o" -arch "${ARCH:-arm64}" 2>/dev/null || true
 cmake -S "$ROOT" -B "$BUILD/pdf2htmlex" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_OSX_ARCHITECTURES="${ARCH:-arm64}" \
@@ -240,7 +240,8 @@ cmake -S "$ROOT" -B "$BUILD/pdf2htmlex" -G Ninja \
     -DFREETYPE_LIBRARY="$STAGE/lib/libfreetype.a" \
     -DPDF2HTMLEX_TRANSITIVE_DEPS="fontconfig;libjpeg;libpng16;lcms2;gobject-2.0;gio-2.0" \
     -DPDF2HTMLEX_GIF_LIBRARY="" \
-    -DPDF2HTMLEX_EXTRA_STATIC_LIBS="-lexpat;-lxml2;-liconv;$BUILD/libintl_stub.o;-lffi;-lpcre2-8;-lgmodule-2.0;-lresolv;-Wl,-framework,CoreFoundation;-Wl,-framework,Foundation" \
+    -DPDF2HTMLEX_INTL_STUB="$ROOT/scripts/libintl_stub.c" \
+    -DPDF2HTMLEX_EXTRA_STATIC_LIBS="-lexpat;-lxml2;-liconv;-lintl;-lffi;-lpcre2-8;-lgmodule-2.0;-lresolv;-Wl,-framework,CoreFoundation;-Wl,-framework,Foundation" \
     -DCMAKE_EXE_LINKER_FLAGS="-L$STAGE/lib"
 cmake --build "$BUILD/pdf2htmlex" -j"$NPROC"
 

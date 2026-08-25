@@ -102,6 +102,10 @@ set(PDF2HTMLEX_EXTRA_STATIC_LIBS "" CACHE STRING
     "Extra libraries appended at the end of the link line")
 list(APPEND PDF2HTMLEX_LIBS ${PDF2HTMLEX_EXTRA_STATIC_LIBS})
 
+# optional NLS-less libintl implementation compiled directly into the binary
+set(PDF2HTMLEX_INTL_STUB "" CACHE FILEPATH
+    "libintl stub .c file to compile into pdf2htmlEX")
+
 if(NOT EXISTS ${POPPLER_SOURCE_DIR}/poppler/CairoOutputDev.cc)
     message(FATAL_ERROR "POPPLER_SOURCE_DIR must point at a poppler >=24.01 source tree "
         "(CairoOutputDev.cc is no longer part of the library)")
@@ -196,6 +200,9 @@ set(PDF2HTMLEX_SRC ${PDF2HTMLEX_SRC}
     ${POPPLER_SOURCE_DIR}/poppler/CairoOutputDev.cc)
 
 add_executable(pdf2htmlEX ${PDF2HTMLEX_SRC})
+if(PDF2HTMLEX_INTL_STUB)
+    target_sources(pdf2htmlEX PRIVATE ${PDF2HTMLEX_INTL_STUB})
+endif()
 target_link_libraries(pdf2htmlEX ${PDF2HTMLEX_LIBS})
 
 add_custom_target(pdf2htmlEX_resources ALL DEPENDS
