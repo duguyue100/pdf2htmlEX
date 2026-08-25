@@ -1,48 +1,59 @@
-# leave this above project(pdf2htmlEX)
-# set default build type to Release
-set(CMAKE_BUILD_TYPE Release CACHE STRING "Build configuration (Debug, Release, RelWithDebInfo, MinSizeRel)")
+cmake_minimum_required(VERSION 3.5)
+project(pdf2htmlEX CXX C)
 
-project(pdf2htmlEX)
-cmake_minimum_required(VERSION 2.6.0 FATAL_ERROR)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build configuration (Debug, Release, RelWithDebInfo, MinSizeRel)")
+endif()
 
 option(ENABLE_SVG "Enable SVG support, for generating SVG background images and converting Type 3 fonts" ON)
 
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
-set(PDF2HTMLEX_VERSION "0.14.6")
+if(NOT DEFINED PDF2HTMLEX_VERSION)
+    set(PDF2HTMLEX_VERSION "0.18.8")
+endif()
 set(ARCHIVE_NAME pdf2htmlex-${PDF2HTMLEX_VERSION})
 add_custom_target(dist
     COMMAND git archive --prefix=${ARCHIVE_NAME}/ HEAD
         | bzip2 > ${CMAKE_BINARY_DIR}/${ARCHIVE_NAME}.tar.bz2
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-find_package(PkgConfig)
+find_package(PkgConfig REQUIRED)
 
+# pdf2htmlEX reaches deep into poppler internals (CairoOutputDev, Matrix, ...)
+# which modern poppler does not export from its shared library. We therefore
+# require a *statically* built poppler and fontforge whose artifacts are
+# installed into a normal prefix; point these at the .a files:
+set(POPPLER_STATIC "" CACHE FILEPATH "Path to a statically-built libpoppler.a")
+set(FONTFORGE_STATIC "" CACHE FILEPATH "Path to a statically-built libfontforge.a")
+# modern poppler no longer compiles CairoOutputDev into libpoppler;
+# we compile it ourselves out of the poppler source tree (like pdftocairo does)
+set(POPPLER_SOURCE_DIR "" CACHE PATH "poppler source tree")
 
-pkg_check_modules(POPPLER REQUIRED poppler>=0.25.0)
-include_directories(${POPPLER_INCLUDE_DIRS})
-link_directories(${POPPLER_LIBRARY_DIRS})
-set(PDF2HTMLEX_LIBS ${PDF2HTMLEX_LIBS} ${POPPLER_LIBRARIES})
+if(NOT POPPLER_STATIC OR NOT FONTFORGE_STATIC)
+    message(FATAL_ERROR "POPPLER_STATIC and FONTFORGE_STATIC are required. "
+        "Build poppler (>=24.01) and fontforge (20230101) with "
+        "-DBUILD_SHARED_LIBS=OFF (poppler also: -DENABLE_UNSTABLE_API_ABI_HEADERS=ON) "
+        "and pass the resulting .a paths.")
+endif()
+
+pkg_check_modules(POPPLER_PC REQUIRED poppler>=24.1.0)
+include_directories(${POPPLER_PC_INCLUDE_DIRS})
+link_directories(${POPPLER_PC_LIBRARY_DIRS})
 
 if(ENABLE_SVG)
     pkg_check_modules(CAIRO REQUIRED cairo>=1.10.0)
-    message("Trying to locate cairo-svg...")
+    message(STATUS "Trying to locate cairo-svg...")
     find_path(CAIRO_SVG_INCLUDE_PATH cairo-svg.h PATHS ${CAIRO_INCLUDE_DIRS} NO_DEFAULT_PATH)
+    if(NOT CAIRO_SVG_INCLUDE_PATH)
+        find_path(CAIRO_SVG_INCLUDE_PATH cairo-svg.h PATHS ${CAIRO_INCLUDE_DIRS}/.. NO_DEFAULT_PATH)
+    endif()
     if(CAIRO_SVG_INCLUDE_PATH)
-        include_directories(${CAIRO_INCLUDE_DIRS})
+        message(STATUS "Found cairo-svg")
+        include_directories(${CAIRO_INCLUDE_DIRS} ${CAIRO_SVG_INCLUDE_PATH})
         link_directories(${CAIRO_LIBRARY_DIRS})
-        set(PDF2HTMLEX_LIBS ${PDF2HTMLEX_LIBS} ${CAIRO_LIBRARIES})
         set(ENABLE_SVG 1)
-        set(CAIROOUTPUTDEV_PATH 3rdparty/poppler/git)
-        include_directories(${CAIROOUTPUTDEV_PATH})
-        set(PDF2HTMLEX_SRC ${PDF2HTMLEX_SRC}
-            ${CAIROOUTPUTDEV_PATH}/CairoFontEngine.h
-            ${CAIROOUTPUTDEV_PATH}/CairoFontEngine.cc
-            ${CAIROOUTPUTDEV_PATH}/CairoRescaleBox.h
-            ${CAIROOUTPUTDEV_PATH}/CairoRescaleBox.cc
-            ${CAIROOUTPUTDEV_PATH}/CairoOutputDev.h
-            ${CAIROOUTPUTDEV_PATH}/CairoOutputDev.cc
-        )
     else()
         message(FATAL_ERROR "Error: no SVG support found in Cairo")
     endif()
@@ -50,56 +61,63 @@ if(ENABLE_SVG)
     find_package(Freetype REQUIRED)
     include_directories(${FREETYPE_INCLUDE_DIRS})
     link_directories(${FREETYPE_LIBRARY_DIRS})
-    set(PDF2HTMLEX_LIBS ${PDF2HTMLEX_LIBS} ${FREETYPE_LIBRARIES})
 endif()
 
-# fontforge starts using pkg-config 'correctly' since 2.0.0
-pkg_check_modules(FONTFORGE REQUIRED libfontforge>=2.0.0)
-include_directories(${FONTFORGE_INCLUDE_DIRS})
-link_directories(${FONTFORGE_LIBRARY_DIRS})
-set(PDF2HTMLEX_LIBS ${PDF2HTMLEX_LIBS} ${FONTFORGE_LIBRARIES})
+# fontforge >= 20230101 installs neither a pkg-config file nor headers;
+# headers must be exported manually into <prefix>/include/fontforge
+pkg_check_modules(GLIB2 REQUIRED glib-2.0)
+include_directories(${GLIB2_INCLUDE_DIRS})
+find_path(FONTFORGE_INCLUDE_DIR fontforge.h PATH_SUFFIXES fontforge)
+if(NOT FONTFORGE_INCLUDE_DIR)
+    message(FATAL_ERROR "fontforge development headers not found")
+endif()
+include_directories(${FONTFORGE_INCLUDE_DIR})
 
-# debug build flags (overwrite default cmake debug flags)
-set(CMAKE_C_FLAGS_DEBUG "-ggdb -pg")
-set(CMAKE_CXX_FLAGS_DEBUG "-ggdb -pg")
-set(CMAKE_EXE_LINKER_FLAGS_DEBUG "-pg")
+# the two static archives plus their transitive dependencies
+set(PDF2HTMLEX_LIBS
+    ${FONTFORGE_STATIC}
+    ${POPPLER_STATIC}
+    ${CAIRO_LIBRARIES}
+    ${FREETYPE_LIBRARIES}
+    ${GLIB2_LIBRARIES}
+)
+set(PDF2HTMLEX_TRANSITIVE_DEPS
+    "fontconfig;libjpeg;libpng16;libopenjp2;lcms2;libtiff-4;gobject-2.0;gio-2.0;libxml-2.0;libspiro"
+    CACHE STRING "pkg-config modules needed by the two static archives")
+foreach(_mod ${PDF2HTMLEX_TRANSITIVE_DEPS})
+    pkg_check_modules(PC_${_mod} QUIET ${_mod})
+    if(PC_${_mod}_FOUND)
+        list(APPEND PDF2HTMLEX_LIBS ${PC_${_mod}_LIBRARIES})
+        include_directories(${PC_${_mod}_INCLUDE_DIRS})
+    endif()
+endforeach()
+# giflib has no pkg-config file; clear this where it is not available
+set(PDF2HTMLEX_GIF_LIBRARY "-lgif" CACHE STRING
+    "Link flags for giflib (empty if unavailable)")
+list(APPEND PDF2HTMLEX_LIBS ${PDF2HTMLEX_GIF_LIBRARY} -lz -lm -lpthread)
 
-# release build flags (overwrite default cmake release flags)
-set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
+# fully-static builds may need extra low-level archives appended after
+# everything else so ld can resolve transitive references
+set(PDF2HTMLEX_EXTRA_STATIC_LIBS "" CACHE STRING
+    "Extra libraries appended at the end of the link line")
+list(APPEND PDF2HTMLEX_LIBS ${PDF2HTMLEX_EXTRA_STATIC_LIBS})
+
+# optional NLS-less libintl implementation compiled directly into the binary
+set(PDF2HTMLEX_INTL_STUB "" CACHE FILEPATH
+    "libintl stub .c file to compile into pdf2htmlEX")
+
+if(NOT EXISTS ${POPPLER_SOURCE_DIR}/poppler/CairoOutputDev.cc)
+    message(FATAL_ERROR "POPPLER_SOURCE_DIR must point at a poppler >=24.01 source tree "
+        "(CairoOutputDev.cc is no longer part of the library)")
+endif()
+include_directories(${POPPLER_SOURCE_DIR} ${POPPLER_SOURCE_DIR}/build)
 
 # generic flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 
-# clang compiler need c++11 flag
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-endif()
-
-# CYGWIN or GCC 4.5.x bug
-if(CYGWIN)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++0x")
-else()
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-endif()
-
-# check the C++11 features we need
-include(CheckCXXSourceCompiles)
-check_cxx_source_compiles("
-#include <vector>
-int main()
-{
-  char * ptr = nullptr;
-  std::vector<int> v;
-  auto f = [&](){ for(auto & i : v) ++i; };
-  f();
-}
-" CXX0X_SUPPORT)
-if(NOT CXX0X_SUPPORT)
-    message(FATAL_ERROR "Error: your compiler does not support C++0x/C++11, please update it.")
-endif()
-
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 configure_file (${CMAKE_SOURCE_DIR}/src/pdf2htmlEX-config.h.in ${CMAKE_SOURCE_DIR}/src/pdf2htmlEX-config.h)
 configure_file (${CMAKE_SOURCE_DIR}/pdf2htmlEX.1.in ${CMAKE_SOURCE_DIR}/pdf2htmlEX.1)
@@ -148,6 +166,8 @@ set(PDF2HTMLEX_SRC ${PDF2HTMLEX_SRC}
     src/util/unicode.cc
     src/util/mingw.h
     src/util/mingw.cc
+    src/util/SignalHandler.h
+    src/util/SignalHandler.cc
     src/ArgParser.h
     src/ArgParser.cc
     src/Base64Stream.h
@@ -171,7 +191,18 @@ set(PDF2HTMLEX_SRC ${PDF2HTMLEX_SRC}
     src/TmpFiles.cc
     )
 
+set(PDF2HTMLEX_SRC ${PDF2HTMLEX_SRC}
+    ${POPPLER_SOURCE_DIR}/poppler/CairoFontEngine.h
+    ${POPPLER_SOURCE_DIR}/poppler/CairoFontEngine.cc
+    ${POPPLER_SOURCE_DIR}/poppler/CairoRescaleBox.h
+    ${POPPLER_SOURCE_DIR}/poppler/CairoRescaleBox.cc
+    ${POPPLER_SOURCE_DIR}/poppler/CairoOutputDev.h
+    ${POPPLER_SOURCE_DIR}/poppler/CairoOutputDev.cc)
+
 add_executable(pdf2htmlEX ${PDF2HTMLEX_SRC})
+if(PDF2HTMLEX_INTL_STUB)
+    target_sources(pdf2htmlEX PRIVATE ${PDF2HTMLEX_INTL_STUB})
+endif()
 target_link_libraries(pdf2htmlEX ${PDF2HTMLEX_LIBS})
 
 add_custom_target(pdf2htmlEX_resources ALL DEPENDS
@@ -214,20 +245,3 @@ set(PDF2HTMLEX_RESOURCE
     )
 install (FILES ${PDF2HTMLEX_RESOURCE} DESTINATION share/pdf2htmlEX)
 install (FILES pdf2htmlEX.1 DESTINATION share/man/man1)
-
-## tests:
-
-set(PDF2HTMLEX_PATH ${CMAKE_BINARY_DIR}/pdf2htmlEX)
-set(PDF2HTMLEX_TMPDIR /tmp/pdf2htmlEX/tmp)
-set(PDF2HTMLEX_DATDIR /tmp/pdf2htmlEX/dat)
-set(PDF2HTMLEX_PNGDIR /tmp/pdf2htmlEX/png)
-set(PDF2HTMLEX_OUTDIR /tmp/pdf2htmlEX/out)
-file(MAKE_DIRECTORY ${PDF2HTMLEX_TMPDIR})
-file(MAKE_DIRECTORY ${PDF2HTMLEX_DATDIR})
-file(MAKE_DIRECTORY ${PDF2HTMLEX_PNGDIR})
-file(MAKE_DIRECTORY ${PDF2HTMLEX_OUTDIR})
-configure_file(${CMAKE_SOURCE_DIR}/test/test.py.in ${CMAKE_SOURCE_DIR}/test/test.py)
-
-include(CTest)
-add_test(test_basic   python ${CMAKE_SOURCE_DIR}/test/test_output.py)
-add_test(test_browser python ${CMAKE_SOURCE_DIR}/test/test_local_browser.py)

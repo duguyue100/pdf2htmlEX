@@ -29,7 +29,7 @@ using std::unique_ptr;
 const SplashColor SplashBackgroundRenderer::white = {255,255,255};
 
 SplashBackgroundRenderer::SplashBackgroundRenderer(const string & imgFormat, HTMLRenderer * html_renderer, const Param & param)
-    : SplashOutputDev(splashModeRGB8, 4, gFalse, (SplashColorPtr)(&white))
+    : SplashOutputDev(splashModeRGB8, 4, false, (SplashColorPtr)(&white), true, splashThinLineSolid) // DCRH: Make thin line mode = solid
     , html_renderer(html_renderer)
     , param(param)
     , format(imgFormat)
@@ -59,38 +59,17 @@ SplashBackgroundRenderer::SplashBackgroundRenderer(const string & imgFormat, HTM
 void SplashBackgroundRenderer::startPage(int pageNum, GfxState *state, XRef *xrefA)
 {
     SplashOutputDev::startPage(pageNum, state, xrefA);
-    clearModRegion();
 }
 
 void SplashBackgroundRenderer::drawChar(GfxState *state, double x, double y,
   double dx, double dy,
   double originX, double originY,
-  CharCode code, int nBytes, Unicode *u, int uLen)
+  CharCode code, int nBytes, const Unicode *u, int uLen)
 {
-    // draw characters as image when
-    // - in fallback mode
-    // - OR there is special filling method
-    // - OR using a writing mode font
-    // - OR using a Type 3 font while param.process_type3 is not enabled
-    // - OR the text is used as path
-    if((param.fallback || param.proof)
-       || ( (state->getFont()) 
-            && ( (state->getFont()->getWMode())
-                 || ((state->getFont()->getType() == fontType3) && (!param.process_type3))
-                 || (state->getRender() >= 4)
-               )
-          )
-      )
-    {
+    if (param.proof || html_renderer->is_char_covered(drawn_char_count)) {
         SplashOutputDev::drawChar(state,x,y,dx,dy,originX,originY,code,nBytes,u,uLen);
     }
-    // If a char is treated as image, it is not subject to cover test
-    // (see HTMLRenderer::drawString), so don't increase drawn_char_count.
-    else if (param.correct_text_visibility) {
-        if (html_renderer->is_char_covered(drawn_char_count))
-            SplashOutputDev::drawChar(state,x,y,dx,dy,originX,originY,code,nBytes,u,uLen);
-        drawn_char_count++;
-    }
+    drawn_char_count++;
 }
 
 void SplashBackgroundRenderer::beginTextObject(GfxState *state)
@@ -100,7 +79,7 @@ void SplashBackgroundRenderer::beginTextObject(GfxState *state)
     SplashOutputDev::beginTextObject(state);
 }
 
-void SplashBackgroundRenderer::beginString(GfxState *state, GooString * str)
+void SplashBackgroundRenderer::beginString(GfxState *state, const GooString * str)
 {
     if (param.proof == 2)
         proof_begin_string(state, this);
@@ -126,15 +105,16 @@ void SplashBackgroundRenderer::init(PDFDoc * doc)
     startDoc(doc);
 }
 
-static GBool annot_cb(Annot *, void * pflag) {
-    return (*((bool*)pflag)) ? gTrue : gFalse;
+static bool annot_cb(Annot *, void * pflag) {
+    return (*((bool*)pflag)) ? true : false;
 };
 
 bool SplashBackgroundRenderer::render_page(PDFDoc * doc, int pageno)
 {
     drawn_char_count = 0;
     bool process_annotation = param.process_annotation;
-    doc->displayPage(this, pageno, param.h_dpi, param.v_dpi,
+
+    doc->displayPage(this, pageno, param.actual_dpi, param.actual_dpi,
             0, 
             (!(param.use_cropbox)),
             false, false,
@@ -146,8 +126,16 @@ void SplashBackgroundRenderer::embed_image(int pageno)
 {
     // xmin->xmax is top->bottom
     int xmin, xmax, ymin, ymax;
-    getModRegion(&xmin, &ymin, &xmax, &ymax);
-
+// poppler-0.84.0 hack to recover from the removal of *ModRegion tracking 
+//
+	auto * bitmap = getBitmap();
+	xmin = 0;
+	xmax = bitmap->getWidth();
+	ymin = 0;
+	ymax = bitmap->getHeight();
+//
+// end of hack
+	
     // dump the background image only when it is not empty
     if((xmin <= xmax) && (ymin <= ymax))
     {
@@ -159,8 +147,8 @@ void SplashBackgroundRenderer::embed_image(int pageno)
             dump_image((char*)fn, xmin, ymin, xmax, ymax);
         }
 
-        double h_scale = html_renderer->text_zoom_factor() * DEFAULT_DPI / param.h_dpi;
-        double v_scale = html_renderer->text_zoom_factor() * DEFAULT_DPI / param.v_dpi;
+        double h_scale = html_renderer->text_zoom_factor() * DEFAULT_DPI / param.actual_dpi;
+        double v_scale = html_renderer->text_zoom_factor() * DEFAULT_DPI / param.actual_dpi;
 
         auto & f_page = *(html_renderer->f_curpage);
         auto & all_manager = html_renderer->all_manager;
@@ -227,7 +215,7 @@ void SplashBackgroundRenderer::dump_image(const char * filename, int x1, int y1,
         throw string("Image format not supported: ") + format;
     }
 
-    if(!writer->init(f, width, height, param.h_dpi, param.v_dpi))
+    if(!writer->init(f, width, height, param.actual_dpi, param.actual_dpi))
         throw "Cannot initialize image writer";
         
     auto * bitmap = getBitmap();

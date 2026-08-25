@@ -1,0 +1,114 @@
+# Fully static pdf2htmlEX build on musl (Alpine).
+# Produces a portable linux binary: ldd -> "not a dynamic executable".
+#
+# docker build -f Dockerfile.alpine-static -t pdf2htmlex-static .
+# docker run --rm pdf2htmlex-static cat /out/pdf2htmlEX-linux-$(uname -m).tar.gz > ...
+FROM alpine:3.20
+
+RUN apk add --no-cache \
+        build-base cmake ninja pkgconf git python3 curl xz tar \
+        cairo-dev freetype-dev fontconfig-dev libpng-dev libjpeg-turbo-dev \
+        giflib-dev glib-dev libxml2-dev lcms2-dev \
+        expat-dev pixman-dev brotli-dev bzip2-dev zlib-static boost-dev \
+        gettext-dev linux-headers \
+        cairo-static freetype-static fontconfig-static libpng-static \
+        libjpeg-turbo-static giflib-static glib-static libxml2-static \
+        lcms2-static expat-static pixman-static brotli-static harfbuzz-static \
+        bzip2-static util-linux-static xz-static zstd-static gettext-static libeconf-dev
+
+# ---- poppler (static, internal headers exported) --------------------------
+ARG POPPLER_VERSION=24.01.0
+ADD https://poppler.freedesktop.org/poppler-${POPPLER_VERSION}.tar.xz /tmp/pp.tar.xz
+RUN mkdir /tmp/pp && tar -xJf /tmp/pp.tar.xz --strip-components=1 -C /tmp/pp \
+    && mkdir -p /tmp/pp/test \
+    && cmake -S /tmp/pp -B /tmp/pp/build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DENABLE_UNSTABLE_API_ABI_HEADERS=ON \
+        -DFONT_CONFIGURATION=fontconfig \
+        -DENABLE_GLIB=OFF \
+        -DENABLE_CPP=OFF \
+        -DENABLE_QT5=OFF \
+        -DENABLE_QT6=OFF \
+        -DENABLE_UTILS=OFF \
+        -DENABLE_LIBTIFF=OFF \
+        -DENABLE_LIBOPENJPEG=none \
+        -DENABLE_CMS=lcms2 \
+        -DENABLE_LIBCURL=OFF \
+        -DENABLE_NSS3=OFF \
+        -DENABLE_GPGME=OFF \
+    && cmake --build /tmp/pp/build -j"$(nproc)" \
+    && cmake --install /tmp/pp/build \
+    && mv /tmp/pp /opt/poppler-src \
+    && rm /tmp/pp.tar.xz
+
+# ---- fontforge (static; upstream installs neither .a nor headers) ----------
+ARG FONTFORGE_VERSION=20230101
+ADD https://github.com/fontforge/fontforge/archive/refs/tags/${FONTFORGE_VERSION}.tar.gz /tmp/ff.tar.gz
+RUN mkdir /tmp/ff && tar -xzf /tmp/ff.tar.gz --strip-components=1 -C /tmp/ff \
+    && sed -i 's/add_custom_target(pofiles ALL/add_custom_target(pofiles/' /tmp/ff/po/CMakeLists.txt \
+    && sed -i 's/" --check -o /" -o /' /tmp/ff/po/CMakeLists.txt \
+    && cmake -S /tmp/ff -B /tmp/ff/build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DENABLE_GUI=OFF \
+        -DENABLE_X11=OFF \
+        -DENABLE_LIBSPIRO=OFF \
+        -DENABLE_LIBTIFF=OFF \
+        -DENABLE_WOFF2=OFF \
+        -DENABLE_PYTHON_SCRIPTING=OFF \
+        -DENABLE_NATIVE_SCRIPTING=ON \
+        -DENABLE_DOCS=OFF \
+    && cmake --build /tmp/ff/build -j"$(nproc)" \
+    && cmake --build /tmp/ff/build --target pofiles \
+    && cmake --install /tmp/ff/build \
+    && cp /tmp/ff/build/lib/libfontforge.a /usr/local/lib/ \
+    && mkdir -p /usr/local/include/fontforge \
+    && cp /tmp/ff/inc/*.h /tmp/ff/fontforge/*.h /tmp/ff/build/inc/*.h /usr/local/include/fontforge/ \
+    && rm -rf /tmp/ff /tmp/ff.tar.gz
+
+# ---- pdf2htmlEX ------------------------------------------------------------
+WORKDIR /src
+COPY . /src
+
+# collect static archives into a dir searched before /usr/lib so that
+# -l flags resolve to .a (nothing gets deleted; cmake keeps working)
+RUN mkdir /static-libs && cd /static-libs && for l in cairo freetype fontconfig \
+        pixman-1 png16 jpeg gif xml2 lcms2 glib-2.0 gobject-2.0 gio-2.0 \
+        gmodule-2.0 gthread-2.0 ffi pcre2-8 pcre2-posix brotlidec brotlienc \
+        brotlicommon bz2 z harfbuzz intl mount blkid uuid lzma zstd econf; do \
+        cp -f /usr/lib/lib$l.a . 2>/dev/null || true; done
+
+# lcms2.pc advertises sub-archives alpine does not ship; drop them
+RUN sed -i 's/ -llcms2_fast_float//; s/ -llcms2_threaded//' /usr/lib/pkgconfig/lcms2.pc
+
+RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+        -DPOPPLER_STATIC=/usr/local/lib/libpoppler.a \
+        -DFONTFORGE_STATIC=/usr/local/lib/libfontforge.a \
+        -DPOPPLER_SOURCE_DIR=/opt/poppler-src \
+        -DFREETYPE_LIBRARY=/usr/lib/libfreetype.a \
+        -DPDF2HTMLEX_TRANSITIVE_DEPS="fontconfig;libjpeg;libpng16;lcms2;gobject-2.0;gio-2.0;libxml-2.0" \
+        -DPDF2HTMLEX_EXTRA_STATIC_LIBS="-lpixman-1;-lbrotlidec;-lbrotlienc;-lbrotlicommon;-lbz2;-lexpat;-lffi;-lpcre2-8;-lgmodule-2.0;-lmount;-leconf;-lblkid;-luuid;-llzma;-lzstd" \
+        # ponytail: fontforge & libmount both define strconcat etc.; the
+        # dependency set here is closed and known, first definition wins
+        -DCMAKE_EXE_LINKER_FLAGS="-static -L/static-libs -Wl,--allow-multiple-definition" \
+    && cmake --build build -j"$(nproc)" \
+    && file build/pdf2htmlEX
+
+# package + verify
+RUN strip build/pdf2htmlEX \
+    && mkdir -p /out/pkg/bin /out/pkg/share \
+    && cp build/pdf2htmlEX /out/pkg/bin/ \
+    && cp -r share /out/pkg/share/pdf2htmlEX \
+    && cp -r 3rdparty/PDF.js/compatibility.js 3rdparty/PDF.js/compatibility.min.js /out/pkg/share/pdf2htmlEX/ \
+    && rm -f /out/pkg/share/pdf2htmlEX/*.in /out/pkg/share/pdf2htmlEX/build_*.sh \
+    && cd /out && tar -czf pdf2htmlEX-linux-$(uname -m).tar.gz pkg
+
+# smoke test the static binary itself
+RUN file /out/pkg/bin/pdf2htmlEX | grep -q "statically linked" \
+    && cd /tmp && /out/pkg/bin/pdf2htmlEX /src/test/data/smoke.pdf s.html; \
+    test -s s.html && grep -q "Hello pdf2htmlEX revived" s.html && echo "STATIC SMOKE TEST PASSED"

@@ -14,10 +14,7 @@
 #include <ostream>
 #include <sstream>
 #include <memory>
-
-#ifndef nullptr
-#define nullptr (NULL)
-#endif
+#include <cstddef>
 
 namespace pdf2htmlEX {
 
