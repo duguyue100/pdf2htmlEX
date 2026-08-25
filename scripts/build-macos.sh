@@ -196,6 +196,7 @@ FONTFORGE_VERSION=20230101
 [ -f "$STAGE/lib/libfontforge.a" ] || {
     sed -i.bak 's/add_custom_target(pofiles ALL/add_custom_target(pofiles/' "$SRC/fontforge/po/CMakeLists.txt"
     cmake_bi "$SRC/fontforge" \
+        -DBUILD_TESTING=OFF \
         -DENABLE_GUI=OFF -DENABLE_X11=OFF -DENABLE_LIBSPIRO=OFF \
         -DENABLE_LIBTIFF=OFF -DENABLE_WOFF2=OFF \
         -DENABLE_PYTHON_SCRIPTING=OFF -DENABLE_NATIVE_SCRIPTING=ON \
@@ -210,6 +211,8 @@ FONTFORGE_VERSION=20230101
 }
 
 # ---- 15. pdf2htmlEX --------------------------------------------------------
+# static glib drags in iconv, proxy-libintl and the Foundation framework;
+# system libiconv/libSystem stay dynamic, which is unavoidable on macOS
 cmake -S "$ROOT" -B "$BUILD/pdf2htmlex" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_OSX_ARCHITECTURES="${ARCH:-arm64}" \
@@ -218,8 +221,7 @@ cmake -S "$ROOT" -B "$BUILD/pdf2htmlex" -G Ninja \
     -DPOPPLER_SOURCE_DIR="$SRC/poppler-src" \
     -DFREETYPE_LIBRARY="$STAGE/lib/libfreetype.a" \
     -DPDF2HTMLEX_TRANSITIVE_DEPS="fontconfig;libjpeg;libpng16;lcms2;gobject-2.0;gio-2.0" \
-    # expat: transitive dep of static fontconfig
-    -DPDF2HTMLEX_EXTRA_STATIC_LIBS="-lexpat" \
+    -DPDF2HTMLEX_EXTRA_STATIC_LIBS="-lexpat;-liconv;-L$SRC/glib/build/subprojects/proxy-libintl;-lintl;-Wl,-framework,CoreFoundation;-Wl,-framework,Foundation" \
     -DCMAKE_EXE_LINKER_FLAGS="-L$STAGE/lib"
 cmake --build "$BUILD/pdf2htmlex" -j"$NPROC"
 
