@@ -271,4 +271,5 @@ else
 fi
 
 cd "$DIST" && tar -czf "pdf2htmlEX-macos-${ARCH}.tar.gz" pkg
-echo "Done: $DIST/pdf2htmlEX-macos-${ARCH}.tar.gz"
+echo "Done: $DIST/pdf2htmlEX-macos-${ARCH}.tar.gz (ARCH=${ARCH})"
+ls -la "$DIST"
