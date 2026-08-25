@@ -257,7 +257,11 @@ cp "$ROOT"/3rdparty/PDF.js/compatibility.js "$ROOT"/3rdparty/PDF.js/compatibilit
 rm -f "$PKG/share/pdf2htmlEX"/*.in "$PKG/share/pdf2htmlEX"/build_*.sh
 
 TMP=$(mktemp -d)
-"$PKG/bin/pdf2htmlEX" "$ROOT/test/data/smoke.pdf" "$TMP/s.html" 2>/dev/null || true
+set +e
+"$PKG/bin/pdf2htmlEX" "$ROOT/test/data/smoke.pdf" "$TMP/s.html"
+echo "pdf2htmlEX exit code: $?"
+set -e
+ls -la "$TMP" || true
 if [ -s "$TMP/s.html" ] && grep -q "Hello pdf2htmlEX revived" "$TMP/s.html"; then
     echo "MACOS STATIC SMOKE TEST PASSED"
 else
